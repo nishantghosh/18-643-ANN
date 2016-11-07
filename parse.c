@@ -1,4 +1,4 @@
-B0;136;0c/* fread example: read an entire file */
+/* fread example: read an entire file */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -13,16 +13,17 @@ B0;136;0c/* fread example: read an entire file */
 #define LABEL_END 8
 
 #define IMAGE_SIZE 784
-#define TRAIN_NUM_IMAGES 60000
-#define DEV_NUM_IMAGES 10000
+#define TRAIN_NUM_IMAGES 8000
+#define DEV_NUM_IMAGES 100
 #define NUM_NEURONS 128
 #define NUM_OUTPUTS 10
-#define NUM_ITERATIONS 1
+#define NUM_ITERATIONS 15
 
-#define LEARNING_RATE 0.008
+#define LEARNING_RATE 0.01
+
+float init = 0.072;
 
 void print_image(uint8_t img[IMAGE_SIZE]);
-
 void print_layer_1(float img[NUM_NEURONS]);
 void print_layer_2(float img[NUM_OUTPUTS]);
 
@@ -31,6 +32,7 @@ int compute_second_layer();
 
 int compute_errors(int);
 int compute_deltas(int);
+float compute_MSE(int);
 
 int parse_images(int);
 int parse_labels(int);
@@ -63,7 +65,6 @@ float   errors_layer2 [NUM_OUTPUTS];
 #define CYAN_TEXT(x) "\033[36;1m" x "\033[0m"
 
 
-
 int find_answer(float layer2[NUM_OUTPUTS]){
 
   int max_index = 0;
@@ -77,7 +78,6 @@ int find_answer(float layer2[NUM_OUTPUTS]){
     }
   }
   return max_index;
-
 }
 
 float sigmoid(float x){
@@ -85,7 +85,6 @@ float sigmoid(float x){
   //float exp_value;
   float return_value;
 
-  /*** Exponential calculation ***/
   //exp_value = exp((double)-x);
   //return_value = 1.0/(1.0 + exp_value);
   return_value = tanh((double)x);
@@ -106,18 +105,28 @@ int main () {
   int answer;
   int correct = 0;
   int iteration = 0;
+  float MSE = 0;
 
   init_weights();
   
   for (iteration =0; iteration < NUM_ITERATIONS; iteration++){
-    printf("iteration = %d\n", iteration);
+
+    MSE = 0;
+
     for (img = 0; img < TRAIN_NUM_IMAGES; img++){
       compute_first_layer(0, img);
       compute_second_layer();
       compute_errors(img);
       compute_deltas(img);
+      MSE += compute_MSE(img);
     }
+    //printf("%d. MSE = %f\n", iteration, MSE);
+    MSE = MSE/TRAIN_NUM_IMAGES;
+    printf("%d. MSE = %f\n", iteration, MSE);
   }
+
+  //print_weights_1(weights1[0]);
+  //print_weights_2(weights2[0]);
 
   for (img = 0; img < DEV_NUM_IMAGES; img++){
     compute_first_layer(1, img);
@@ -168,6 +177,24 @@ int compute_deltas(int img){
 }
 
 
+float compute_MSE(int img){
+
+  float MSE = 0;
+  int output = 0;
+  float truth;
+
+  for (output = 0; output < NUM_OUTPUTS; output++){
+    if (output == train_labels[img])
+      truth = 1.0;
+    else
+      truth = 0.0;
+  
+    MSE += (truth - layer2[output]) * (truth - layer2[output]);
+  }
+
+  return MSE;
+}
+
 int compute_errors(int img){
 
   int output = 0;
@@ -205,7 +232,6 @@ void init_weights(){
   int iteration;
   int neuron;
   int output;
-  float init = 0.075;
 
   for (neuron = 0; neuron < NUM_NEURONS; neuron++){
     for (iteration = 0; iteration < IMAGE_SIZE; iteration++){
