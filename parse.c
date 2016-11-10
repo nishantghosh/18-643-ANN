@@ -9,19 +9,18 @@
 
 #define META_DETA_START 0
 #define META_DATA_END 16
-
 #define LABEL_END 8
 
 #define IMAGE_SIZE 784
-#define TRAIN_NUM_IMAGES 8000
-#define DEV_NUM_IMAGES 100
+#define TRAIN_NUM_IMAGES 5000
+#define DEV_NUM_IMAGES 200
 #define NUM_NEURONS 128
 #define NUM_OUTPUTS 10
-#define NUM_ITERATIONS 15
+#define NUM_ITERATIONS 25
 
 #define LEARNING_RATE 0.01
 
-float init = 0.072;
+float init = 0.01;
 
 void print_image(uint8_t img[IMAGE_SIZE]);
 void print_layer_1(float img[NUM_NEURONS]);
@@ -84,9 +83,8 @@ float sigmoid(float x){
 
   //float exp_value;
   float return_value;
-
   //exp_value = exp((double)-x);
-  //return_value = 1.0/(1.0 + exp_value);
+  //return_value = (1.0/(1.0 + exp_value)) - 0.5;
   return_value = tanh((double)x);
   
   return return_value;
@@ -116,13 +114,15 @@ int main () {
     for (img = 0; img < TRAIN_NUM_IMAGES; img++){
       compute_first_layer(0, img);
       compute_second_layer();
+ 
       compute_errors(img);
+ 
       compute_deltas(img);
       MSE += compute_MSE(img);
     }
-    //printf("%d. MSE = %f\n", iteration, MSE);
+
     MSE = MSE/TRAIN_NUM_IMAGES;
-    printf("%d. MSE = %f\n", iteration, MSE);
+    printf("%d. MSE = %f\n", iteration + 1, MSE);
   }
 
   //print_weights_1(weights1[0]);
@@ -142,16 +142,7 @@ int main () {
   }
 
 
-  printf("ACCURACY = %f%\n", (float)(correct * 100.0)/(float)DEV_NUM_IMAGES);
-
-  /*           
-  parse_images(1); //Test                                                                                                                                                 
-  parse_labels(1);
-
-  print_image(dev_images[0]);                                                                                                                                               
-  printf(CYAN_TEXT("Label = %u\n"), dev_labels[0]);                                                                                                                         
-  printf("\n");                                                                                                                                                             
-  */
+  printf(CYAN_TEXT("ACCURACY = %f%\n"), (float)(correct * 100.0)/(float)DEV_NUM_IMAGES);
 
   return 0;
 }
@@ -199,29 +190,27 @@ int compute_errors(int img){
 
   int output = 0;
   int neuron = 0;
-  int truth;
+  float truth;
 
   for (output = 0; output < NUM_OUTPUTS; output++){
 
-    
     if (output == train_labels[img])
-      truth = 1;
+      truth = 1.0;
     else 
-      truth = 0;
+      truth = 0.0;
     
     //errors_layer2[output] = layer2[output]*(1.0-layer2[output])*(truth-layer2[output]);
-    errors_layer2[output] = (1.0/cosh((double) layer2[output])) * (1.0/cosh((double) layer2[output])) * (truth - layer2[output]);
-    
+    errors_layer2[output] = (1.0 - (layer2[output] * layer2[output])) * (truth - layer2[output]);
   }
   
   for (neuron = 0; neuron < NUM_NEURONS; neuron++){
-    
+
     float contribution = 0;
     for (output = 0; output < NUM_OUTPUTS; output++){
       contribution += weights2[output][neuron]*errors_layer2[output];
     }
-    //errors_layer1[neuron] = layer1[neuron]*(1-layer1[neuron])*contribution;
-    errors_layer1[neuron] = (1.0/cosh((double) layer1[output])) *  (1.0/cosh((double) layer1[output])) * contribution;
+    //errors_layer1[neuron] = layer1[neuron]*(1.0-layer1[neuron])*contribution;
+    errors_layer1[neuron] = (1.0 - (layer1[output] * layer1[output])) * contribution;
   }
 
   return 0;
@@ -371,13 +360,20 @@ int compute_first_layer(int dev, int image_no){
 	layer1[neuron]);
       */
       
-      if (dev)
+      if (dev){
 	layer1[neuron] += sigmoid((float)(dev_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
-      else
+      }
+      else{
 	layer1[neuron] += sigmoid((float)(train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
-      
+      }
+
       iteration += 1;
     }
+
+    if (layer1[neuron] > 1.0){
+      layer1[neuron] = 1.0;
+    }
+
   }
 
   return 0;
@@ -403,8 +399,14 @@ int compute_second_layer(){
       */
 
       layer2[output] += sigmoid((float)(layer1[neuron])*(weights2[output][neuron]));
+      //layer2[output] += layer1[neuron]*weights2[output][neuron];
       neuron += 1;
     }
+
+    if (layer2[output] > 1.0){
+      layer2[output] = 1.0;
+    }
+
   }
  
 
@@ -522,7 +524,7 @@ void print_layer_1(float img[NUM_NEURONS]){
     if ((iteration % 12 == 0) && (iteration != 0))
       printf("\n");
 
-    printf("%*.*f ",1,3,read_byte);
+    printf("%+*.*f ",1,3,read_byte);
 
     iteration += 1;
   }
@@ -541,14 +543,11 @@ void print_layer_2(float img[NUM_OUTPUTS]){
 
     read_byte = img[iteration];
 
-    if ((iteration % 12 == 0) && (iteration != 0))
-      printf("\n");
-
     printf("%*.*f ",1,3,read_byte);
 
     iteration += 1;
   }
-  //printf("\n");
-  //printf("\n");
+  printf("\n");
+  printf("\n");
 }
 
