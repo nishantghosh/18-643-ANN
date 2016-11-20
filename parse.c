@@ -13,12 +13,12 @@
 
 #define IMAGE_SIZE 784
 #define TRAIN_NUM_IMAGES 5000
-#define DEV_NUM_IMAGES 200
+#define DEV_NUM_IMAGES 1000
 #define NUM_NEURONS 128
 #define NUM_OUTPUTS 10
-#define NUM_ITERATIONS 25
+#define NUM_ITERATIONS 20
 
-#define LEARNING_RATE 0.01
+#define LEARNING_RATE 0.9
 
 float init = 0.01;
 
@@ -81,12 +81,27 @@ int find_answer(float layer2[NUM_OUTPUTS]){
 
 float sigmoid(float x){
 
-  //float exp_value;
+
+  /* Plan Approximation */
+
   float return_value;
-  //exp_value = exp((double)-x);
-  //return_value = (1.0/(1.0 + exp_value)) - 0.5;
-  return_value = tanh((double)x);
-  
+
+  if ((fabs(x) >= 0) && (fabs(x) < 1)){
+    return_value = 0.25*fabs(x) + 0.5;
+  } 
+  else if ((fabs(x) >= 1) && (fabs(x) < 2.375)){
+    return_value = 0.125*fabs(x) + 0.625;
+  }
+  else if ((fabs(x) >= 2.375) && (fabs(x) < 5)){
+    return_value = 0.03125*fabs(x) + 0.84375;
+  }
+  else {
+    return_value = 1.0;
+  }
+
+  if (x < 0)
+    return_value = 1.0 - return_value;
+
   return return_value;
 }
 
@@ -132,15 +147,11 @@ int main () {
     compute_first_layer(1, img);
     compute_second_layer();
     answer = find_answer(layer2);
-
-    //printf(CYAN_TEXT("Label = %u\t"), dev_labels[img]);
-    //printf(RED_TEXT("Predicted = %u\n"), answer);
    
     if (answer == dev_labels[img]){
       correct += 1;
     }
   }
-
 
   printf(CYAN_TEXT("ACCURACY = %f%\n"), (float)(correct * 100.0)/(float)DEV_NUM_IMAGES);
 
@@ -199,8 +210,7 @@ int compute_errors(int img){
     else 
       truth = 0.0;
     
-    //errors_layer2[output] = layer2[output]*(1.0-layer2[output])*(truth-layer2[output]);
-    errors_layer2[output] = (1.0 - (layer2[output] * layer2[output])) * (truth - layer2[output]);
+    errors_layer2[output] = (1.0 - (layer2[output])) * layer2[output] * (truth - layer2[output]);
   }
   
   for (neuron = 0; neuron < NUM_NEURONS; neuron++){
@@ -209,8 +219,7 @@ int compute_errors(int img){
     for (output = 0; output < NUM_OUTPUTS; output++){
       contribution += weights2[output][neuron]*errors_layer2[output];
     }
-    //errors_layer1[neuron] = layer1[neuron]*(1.0-layer1[neuron])*contribution;
-    errors_layer1[neuron] = (1.0 - (layer1[output] * layer1[output])) * contribution;
+    errors_layer1[neuron] = (1.0 - (layer1[neuron])) * layer1[neuron] * contribution;
   }
 
   return 0;
@@ -353,27 +362,18 @@ int compute_first_layer(int dev, int image_no){
     layer1[neuron] = 0;
     iteration = 0;
     while (iteration < IMAGE_SIZE){
-      
-      /*
-	printf("pixel = %u, weight = %f, out = %f, layer = %f\n", train_images[image_no][iteration],
-	weights1[neuron][iteration], sigmoid((float)(train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0)),
-	layer1[neuron]);
-      */
-      
+       
       if (dev){
-	layer1[neuron] += sigmoid((float)(dev_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
+	layer1[neuron] += (float)((dev_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
       }
       else{
-	layer1[neuron] += sigmoid((float)(train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
+	layer1[neuron] += (float)((train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
       }
 
       iteration += 1;
     }
 
-    if (layer1[neuron] > 1.0){
-      layer1[neuron] = 1.0;
-    }
-
+    layer1[neuron] = sigmoid(layer1[neuron]);
   }
 
   return 0;
@@ -391,25 +391,13 @@ int compute_second_layer(){
     layer2[output] = 0;
     neuron = 0;
     while (neuron < NUM_NEURONS){
-      
-      /*
-        printf("layer1 = %f, weight = %f, out = %f, layer = %f\n", layer1[neuron],
-	weights2[output][neuron], sigmoid((float)(layer1[neuron])*(weights2[output][neuron])),
-	layer2[output]);
-      */
 
-      layer2[output] += sigmoid((float)(layer1[neuron])*(weights2[output][neuron]));
-      //layer2[output] += layer1[neuron]*weights2[output][neuron];
+      layer2[output] += (float)((layer1[neuron])*(weights2[output][neuron]));
       neuron += 1;
     }
 
-    if (layer2[output] > 1.0){
-      layer2[output] = 1.0;
-    }
-
+    layer2[output] = sigmoid(layer2[output]);
   }
- 
-
   return 0;
 }
 
