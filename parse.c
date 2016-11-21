@@ -12,13 +12,13 @@
 #define LABEL_END 8
 
 #define IMAGE_SIZE 784
-#define TRAIN_NUM_IMAGES 5000
+#define TRAIN_NUM_IMAGES 20000
 #define DEV_NUM_IMAGES 1000
 #define NUM_NEURONS 128
 #define NUM_OUTPUTS 10
 #define NUM_ITERATIONS 20
-
 #define LEARNING_RATE 0.9
+#define BRAM_SIZE 4.92 //MB
 
 float init = 0.01;
 
@@ -79,6 +79,7 @@ int find_answer(float layer2[NUM_OUTPUTS]){
   return max_index;
 }
 
+
 float sigmoid(float x){
 
 
@@ -119,6 +120,20 @@ int main () {
   int correct = 0;
   int iteration = 0;
   float MSE = 0;
+  float total_MB = 0;
+  float space_for_images = 0;
+
+  total_MB += (NUM_NEURONS + NUM_OUTPUTS) * 4.0 * 2.0;
+  total_MB += (NUM_NEURONS * NUM_OUTPUTS) * 4.0;
+  total_MB += (IMAGE_SIZE  * NUM_NEURONS) * 4.0; 
+
+  total_MB = total_MB/(1024.0 * 1024.0);
+
+  printf(CYAN_TEXT("Mem without images = %f MB\n"), total_MB); 
+  
+  space_for_images = (float)BRAM_SIZE - total_MB;
+
+  printf(CYAN_TEXT("No of Images = %f\n"), (space_for_images * 1024.0 * 1024.0)/(IMAGE_SIZE + 1));
 
   init_weights();
   
