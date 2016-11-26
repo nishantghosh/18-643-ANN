@@ -13,14 +13,19 @@
 
 #define IMAGE_SIZE 784
 #define TRAIN_NUM_IMAGES 20000
-#define DEV_NUM_IMAGES 1000
+#define DEV_NUM_IMAGES 5000
 #define NUM_NEURONS 128
 #define NUM_OUTPUTS 10
-#define NUM_ITERATIONS 20
+#define NUM_ITERATIONS 15
 #define LEARNING_RATE 0.9
 #define BRAM_SIZE 4.92 //MB
+#define POLY_MASK_32 0xB4BCD35C
+#define POLY_MASK_31 0x7A5BC2E3
 
 float init = 0.01;
+int lfsr32 = 0xABCDE;
+int lfsr31 = 0x23456789;
+
 
 void print_image(uint8_t img[IMAGE_SIZE]);
 void print_layer_1(float img[NUM_NEURONS]);
@@ -37,7 +42,6 @@ int parse_images(int);
 int parse_labels(int);
 
 int find_answer(float img[NUM_OUTPUTS]);
-
 void init_weights();
 
 void print_weights_1(float w[IMAGE_SIZE]);
@@ -155,13 +159,12 @@ int main () {
     printf("%d. MSE = %f\n", iteration + 1, MSE);
   }
 
-  //print_weights_1(weights1[0]);
-  //print_weights_2(weights2[0]);
-
   for (img = 0; img < DEV_NUM_IMAGES; img++){
     compute_first_layer(1, img);
     compute_second_layer();
     answer = find_answer(layer2);
+
+    //print_image(dev_images[img]);
    
     if (answer == dev_labels[img]){
       correct += 1;
@@ -240,66 +243,96 @@ int compute_errors(int img){
   return 0;
 }
 
+
+int shift_lfsr(int * lfsr, int polynomial_mask){
+
+  int feedback;
+  
+  feedback = *lfsr & 1;
+  *lfsr >>= 1;
+  if (feedback == 1){
+    *lfsr ^= polynomial_mask;
+  }
+
+  return *lfsr;
+}
+
+int get_random(void){
+
+  shift_lfsr(&lfsr32, POLY_MASK_32);
+  return (shift_lfsr(&lfsr32, POLY_MASK_32) ^ shift_lfsr(&lfsr31, POLY_MASK_31)) & 0xffff;
+
+}
+
+
 void init_weights(){
 
+  
   int iteration;
   int neuron;
   int output;
 
   for (neuron = 0; neuron < NUM_NEURONS; neuron++){
     for (iteration = 0; iteration < IMAGE_SIZE; iteration++){
-      weights1[neuron][iteration]  = (((float)rand()/(float)(RAND_MAX))*init) - init/2.0;
+      weights1[neuron][iteration]  = (((float)get_random()/(float)(RAND_MAX))*init) - init/2.0;
     }
   }
 
   for (output = 0; output < NUM_OUTPUTS; output++){
     for (iteration = 0; iteration < NUM_NEURONS; iteration++){
-      weights2[output][iteration] =  (((float)rand()/(float)(RAND_MAX))*init) - init/2.0;
+      weights2[output][iteration] =  (((float)get_random()/(float)(RAND_MAX))*init) - init/2.0;
     }
   }
 }
 
+int compute_first_layer(int dev, int image_no){
 
-void print_weights_1(float weights[IMAGE_SIZE]){
- 
-  int iteration = 0;
-  float read_weight;
-  printf("\n");
+  int total_images;
+  int iteration;
+  int neuron;
 
-  while (iteration < IMAGE_SIZE){
-  
-    read_weight = weights[iteration];
-   
-    if ((iteration % 28 == 0) && (iteration != 0))
-      printf("\n");
+  for (neuron = 0; neuron < NUM_NEURONS; neuron++){
 
-    printf("%+5.2f ", read_weight);
-    iteration += 1;
+    layer1[neuron] = 0;
+    iteration = 0;
+    while (iteration < IMAGE_SIZE){
+
+      if (dev){
+        layer1[neuron] += (float)((dev_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
+      }
+      else{
+        layer1[neuron] += (float)((train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
+      }
+
+      iteration += 1;
+    }
+
+    layer1[neuron] = sigmoid(layer1[neuron]);
   }
-  printf("\n");
-  printf("\n");
+
+  return 0;
 }
 
-void print_weights_2(float weights[NUM_NEURONS]){
 
-  int iteration = 0;
-  float read_weight;
-  printf("\n");
+int compute_second_layer(){
 
-  while (iteration < NUM_NEURONS){
+  int neuron;
+  int output;
 
-    read_weight = weights[iteration];
+  for (output = 0; output < NUM_OUTPUTS; output++){
 
-    if ((iteration % 12 == 0) && (iteration != 0))
-      printf("\n");
+    layer2[output] = 0;
+    neuron = 0;
+    while (neuron < NUM_NEURONS){
 
-    printf("%+5.3f ", 2, read_weight);
-    iteration += 1;
+      layer2[output] += (float)((layer1[neuron])*(weights2[output][neuron]));
+      neuron += 1;
+    }
+
+    layer2[output] = sigmoid(layer2[output]);
   }
-  printf("\n");
-  printf("\n");
+  return 0;
 }
-
 
 
 
@@ -364,59 +397,6 @@ int parse_labels(int dev){
   printf("\n");
   return 0;
 }
-
-
-int compute_first_layer(int dev, int image_no){
-
-  int total_images;
-  int iteration;
-  int neuron;
-  
-  for (neuron = 0; neuron < NUM_NEURONS; neuron++){
-    
-    layer1[neuron] = 0;
-    iteration = 0;
-    while (iteration < IMAGE_SIZE){
-       
-      if (dev){
-	layer1[neuron] += (float)((dev_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
-      }
-      else{
-	layer1[neuron] += (float)((train_images[image_no][iteration])*(weights1[neuron][iteration]/255.0));
-      }
-
-      iteration += 1;
-    }
-
-    layer1[neuron] = sigmoid(layer1[neuron]);
-  }
-
-  return 0;
-}
-
-
-
-int compute_second_layer(){
-
-  int neuron;
-  int output;
-
-  for (output = 0; output < NUM_OUTPUTS; output++){
-    
-    layer2[output] = 0;
-    neuron = 0;
-    while (neuron < NUM_NEURONS){
-
-      layer2[output] += (float)((layer1[neuron])*(weights2[output][neuron]));
-      neuron += 1;
-    }
-
-    layer2[output] = sigmoid(layer2[output]);
-  }
-  return 0;
-}
-
-
 
 
 int parse_images(int dev){
@@ -494,6 +474,8 @@ int parse_images(int dev){
   return 0;
 }
 
+
+/*
 void print_image(uint8_t img[IMAGE_SIZE]){
 
   int iteration = 0;
@@ -554,3 +536,44 @@ void print_layer_2(float img[NUM_OUTPUTS]){
   printf("\n");
 }
 
+void print_weights_2(float weights[NUM_NEURONS]){
+
+  int iteration = 0;
+  float read_weight;
+  printf("\n");
+
+  while (iteration < NUM_NEURONS){
+
+    read_weight = weights[iteration];
+
+    if ((iteration % 12 == 0) && (iteration != 0))
+      printf("\n");
+
+    printf("%+5.3f ", 2, read_weight);
+    iteration += 1;
+  }
+  printf("\n");
+  printf("\n");
+}
+
+void print_weights_1(float weights[IMAGE_SIZE]){
+  
+  int iteration = 0;
+  float read_weight;
+  printf("\n");
+  
+  while (iteration < IMAGE_SIZE){
+    
+    read_weight = weights[iteration];
+    
+    if ((iteration % 28 == 0) && (iteration != 0))
+      printf("\n");
+    
+    printf("%+5.2f ", read_weight);
+    iteration += 1;
+  }
+  printf("\n");
+  printf("\n");
+}
+
+*/
